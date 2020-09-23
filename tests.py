@@ -149,11 +149,11 @@ def hypothesis_calculator_elliptical(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.0000
     # Defaults to properties of graphene for a_0, a_s, J_s. Defaults the magic constant to c=0.006, and res=30 parts per 1 um
     # Mind that E_enc will err considerably if p_gph<25%, also there is nonlinearity around d_tot \approx w
 
-    # Initialize a beam with beam_inittilt(), length=w*2.5 for good measure, check if beam_init_Ep_error is good enough
+    # Initialize a beam with beam_inittilt(), length=w*4 for good measure, check if beam_init_Ep_error is good enough
     if transpose_mask == True:
-        beam_init = beam_initialize_fast(Ep=hc_E_p, w=hc_w, res=hc_res, is_x=False, deg=hc_theta, length=int(np.ceil(hc_w*2.5)))
+        beam_init = beam_inittilt(Ep=hc_E_p, w=hc_w, res=hc_res, is_x=False, deg=hc_theta, length=int(np.ceil(hc_w*4)))
     else:
-        beam_init = beam_initialize_fast(Ep=hc_E_p, w=hc_w, res=hc_res, deg=hc_theta, length=int(np.ceil(hc_w*2.5)))
+        beam_init = beam_inittilt(Ep=hc_E_p, w=hc_w, res=hc_res, deg=hc_theta, length=int(np.ceil(hc_w*4)))
     beam_init_actualEp = integrate_for_energy(beam_init)
     beam_init_Ep_error = 100*np.abs(hc_E_p-beam_init_actualEp)/hc_E_p
 
