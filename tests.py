@@ -4,13 +4,14 @@ Author: Onur Serin
 
 Functions:
 -- variation_checker(beam, width_config, plot)
-Calculates % variation in energy as given masks are translated
+Calculates % variation in energy as given graphene masks are translated
 in front of a beam for each 1um step one by one, and calculates the % change in loss over mean loss, width_config is a list
 with entries (graphene_width, ablation_width). If plot=True, then plots two figures, one for each calculation.
 
--- simulated_translation_Evals(beam, width_config)
+-- simulated_translation_Evals(beam, width_config, mask_config)
 Returns a list of E values after the beam is translated 1um at a time in front of a graphene layer, width_config is a tuple
-in the form of (graphene_width, ablation_width). The graphene layer has zebra patterns
+in the form of (graphene_width, ablation_width). The graphene layer has zebra patterns. mask_config is in the form
+(Js, a0, aS), defaults if no mask_config given
 
 -- hypothesis_calculator(hc_a_0,hc_a_s,hc_J_s, hc_E_p, hc_w, hc_res, hc_d_tot, hc_p_gph, hc_c)
 Defaults to properties of graphene, the graphene layer has zebra patterns.
@@ -28,16 +29,18 @@ Same alignment issue of hypothesis_calculator() is observed in this function as 
 As for transpose_mask, set it to True to make the the zebra patterns perpendicular to the major axis of the beam, defaults to False
 which keeps the major axis parallel
 
--- generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals)
+-- generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, mask_config, constant_c)
 Takes in lists of parameters to traverse each combination of them to calculate %errors at maxima of hypothetical data wrt simulated data
 Returns a database pd.DataFrame(columns=['E_p','w','d_tot','p_gph','err%_at_max','err%_at_min'])
-See the function definition to take a look at the defaults
+mask_config is in the form (Js, a0, aS), constant_c defaults to 0.006
 
--- generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_vals, transpose_mask)
+-- generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_vals, mask_config, constant_c, transpose_mask)
 Takes in lists of parameters to traverse each combination of them to calculate %errors at maxima of hypothetical data wrt simulated data
 Returns a database pd.DataFrame(columns=['E_p','w','d_tot', 'theta', 'p_gph','err%_at_max','err%_at_min','err%_Ep'])
-See the function definition to take a look at the defaults
+mask_config is in the form (Js, a0, aS), constant_c defaults to 0.006
 
+
+Defaults: Js=0.00000015 uJ/um2, a0=0.01725, aS=0.00575
 
 Note: Multithread your tests if you can afford the memory space, they use one core only.
 Note: Do not import beam.py separately, it is already included here.
@@ -104,11 +107,14 @@ def variation_checker(beam, width_config, plot=False):  # width_config is a list
     return dE_E, dE_E_diff
 
 
-def simulated_translation_Evals(beam, width_config):  # width_config is the tuple (graphene_width, ablation_width)
+def simulated_translation_Evals(beam, width_config, mask_config=(0.00000015,0.01725,0.00575)):  # width_config is the tuple (graphene_width, ablation_width)
+    # Overwrite mask_config, which is (Js,a0,aS), for non-graphene layers
     results = []  # results list will contain energy integral values(wrt offset 1um per step) of each config
     Einput_actual = integrate_for_energy(beam)
 
-    mm = mask_initialize(beam=beam, shape='lines', width=width_config[0], thickness=width_config[1], crop=False)
+    mm = mask_initialize(beam=beam, shape='lines', width=width_config[0],\
+                                                   thickness=width_config[1],\
+                                                   Js=mask_config[0], a0=mask_config[1], aS=mask_config[2] , crop=False)
     stepsize = int(np.ceil(width_config[0] + width_config[1]))
     itrtr = mask_slide_iterator(beam=beam,mask=mm,stepsY=stepsize)  # Slider slides graphene layer about 1um at a time
     for j in itrtr:
@@ -136,7 +142,9 @@ def hypothesis_calculator(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.00000015, hc_E_
     hc_E_tot_ministripes = beam_init_actualEp - np.multiply( hc_p_gph, integrate.nquad(np_J_red,[[-np.inf,np.inf],[-np.inf,np.inf]])[0])
 
     # Return 1um-per-step translation simulation data, hypothetical calculations for these steps, % error of sum of energy density*unit area wrt given E_p
-    simulated_translation_data = simulated_translation_Evals(beam_init, ( hc_d_tot*hc_p_gph, hc_d_tot*(1-hc_p_gph) ))
+    simulated_translation_data = simulated_translation_Evals(beam_init,\
+                                                            ( hc_d_tot*hc_p_gph, hc_d_tot*(1-hc_p_gph) ),\
+                                                            ( hc_J_s, hc_a_0, hc_a_s ))
     E_enc_fixed = E_enc.subs({E_tot:hc_E_tot_ministripes, c:hc_c, d_tot:hc_d_tot, w:hc_w, p_gph:hc_p_gph})
     np_E_enc_fixed = lambdify(y_pos, E_enc_fixed, 'numpy')
     hypothetical_translation_data = [np_E_enc_fixed(i) for i in range(int(np.ceil(hc_d_tot)))]
@@ -164,7 +172,9 @@ def hypothesis_calculator_elliptical(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.0000
     hc_E_tot_ministripes = beam_init_actualEp - np.multiply( hc_p_gph, integrate.nquad(np_J_red,[[-np.inf,np.inf],[-np.inf,np.inf]])[0])
 
     # Return 1um-per-step translation simulation data, hypothetical calculations for these steps, % error of sum of energy density*unit area wrt given E_p
-    simulated_translation_data = simulated_translation_Evals(beam_init, ( hc_d_tot*hc_p_gph, hc_d_tot*(1-hc_p_gph) ))
+    simulated_translation_data = simulated_translation_Evals(beam_init,\
+                                                            ( hc_d_tot*hc_p_gph, hc_d_tot*(1-hc_p_gph) ),\
+                                                            ( hc_J_s, hc_a_0, hc_a_s ))
     E_enc_fixed = E_enc.subs({E_tot:hc_E_tot_ministripes, c:hc_c, d_tot:hc_d_tot, w:hc_w, p_gph:hc_p_gph})
     np_E_enc_fixed = lambdify(y_pos, E_enc_fixed, 'numpy')
     hypothetical_translation_data = [np_E_enc_fixed(i) for i in range(int(np.ceil(hc_d_tot)))]
@@ -172,7 +182,8 @@ def hypothesis_calculator_elliptical(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.0000
     return simulated_translation_data, hypothetical_translation_data, beam_init_Ep_error
 
 
-def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals):
+def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals,\
+                                                      mask_config=(0.00000015,0.01725,0.00575), constant_c=0.006):
     beam_pd = pd.DataFrame(columns=['E_p','w','d_tot','p_gph','err%_at_max','err%_at_min'])
     for test_E_p in E_p_vals:
         for test_w in w_vals:
@@ -182,7 +193,10 @@ def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals):
                                                                       hc_w=test_w,\
                                                                       hc_d_tot=test_d_tot,\
                                                                       hc_p_gph=test_p_gph,\
-                                                                      hc_c=0.006)
+                                                                      hc_J_s = mask_config[0],\
+                                                                      hc_a_0 = mask_config[1],\
+                                                                      hc_a_s = mask_config[2],\
+                                                                      hc_c=constant_c)
                     max_dat = 100*(max(sim_dat)-max(hypo_dat))/max(sim_dat)
                     min_dat = 100*(min(sim_dat)-min(hypo_dat))/min(sim_dat)
                     beam_pd = beam_pd.append({'E_p':test_E_p,\
@@ -194,7 +208,8 @@ def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals):
     return beam_pd
 
 
-def generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_vals, transpose_mask=False):
+def generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_vals,\
+                                                                         mask_config=(0.00000015,0.01725,0.00575), constant_c=0.006, transpose_mask=False):
     beam_pd_tilted = pd.DataFrame(columns=['E_p','w','d_tot', 'theta', 'p_gph','err%_at_max','err%_at_min','err%_Ep'])
     for test_E_p in E_p_vals:
         for test_w in w_vals:
@@ -206,8 +221,11 @@ def generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_v
                                                                                      hc_d_tot=test_d_tot,\
                                                                                      hc_p_gph=test_p_gph,\
                                                                                      hc_theta=test_theta,\
+                                                                                     hc_J_s = mask_config[0],\
+                                                                                     hc_a_0 = mask_config[1],\
+                                                                                     hc_a_s = mask_config[2],\
                                                                                      transpose_mask=transpose_mask,\
-                                                                                     hc_c=0.006)
+                                                                                     hc_c=constant_c)
                         max_dat = 100*(max(sim_dat)-max(hypo_dat))/max(sim_dat)
                         min_dat = 100*(min(sim_dat)-min(hypo_dat))/min(sim_dat)
                         beam_pd_tilted = beam_pd_tilted.append({'E_p':test_E_p,\
