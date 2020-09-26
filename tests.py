@@ -13,7 +13,7 @@ Returns a list of E values after the beam is translated 1um at a time in front o
 in the form of (graphene_width, ablation_width). The graphene layer has zebra patterns. mask_config is in the form
 (Js, a0, aS), defaults if no mask_config given
 
--- hypothesis_calculator(hc_a_0,hc_a_s,hc_J_s, hc_E_p, hc_w, hc_res, hc_d_tot, hc_p_gph, hc_c)
+-- hypothesis_calculator(hc_a_0,hc_a_s,hc_J_s, hc_E_p, hc_w, hc_res, hc_d_tot, hc_p_gph, hc_c, hc_c_1, hc_c_2, use_gompertz)
 Defaults to properties of graphene, the graphene layer has zebra patterns.
 Returns simulated data, hypothetical data and error in E_p caused by discretization and finiteness of matrices
 The data are E values of the specified beam after passing through a specified mask at positions sequencially 1um apart
@@ -21,7 +21,7 @@ Mind that the two data sets will probably not align as hypothetical calculations
 the simulation starts at a semi-random location which depends on the dimension of the mask applied, which is no problem as
 we can easily deduce where the maxima of E values must occur.
 
--- hypothesis_calculator_elliptical(hc_a_0,hc_a_s,hc_J_s, hc_E_p, hc_w, hc_res, hc_d_tot, hc_p_gph, hc_c, hc_theta=0, transpose_mask)
+-- hypothesis_calculator_elliptical(hc_a_0,hc_a_s,hc_J_s, hc_E_p, hc_w, hc_res, hc_d_tot, hc_p_gph, hc_c, hc_c_1, hc_c_2, hc_theta=0, transpose_mask, use_gompertz)
 Defaults to properties of graphene, the graphene layer has zebra patterns.
 Returns simulated data, hypothetical data and error in E_p caused by discretization and finiteness of matrices
 The data are E values of the specified beam after passing through a specified mask at positions sequencially 1um apart
@@ -29,18 +29,19 @@ Same alignment issue of hypothesis_calculator() is observed in this function as 
 As for transpose_mask, set it to True to make the the zebra patterns perpendicular to the major axis of the beam, defaults to False
 which keeps the major axis parallel
 
--- generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, mask_config, constant_c)
+-- generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, mask_config, constant_c, constant_c_1, constant_c_2, use_gompertz)
 Takes in lists of parameters to traverse each combination of them to calculate %errors at maxima of hypothetical data wrt simulated data
 Returns a database pd.DataFrame(columns=['E_p','w','d_tot','p_gph','err%_at_max','err%_at_min'])
-mask_config is in the form (Js, a0, aS), constant_c defaults to 0.006
+mask_config is in the form (Js, a0, aS)
 
--- generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_vals, mask_config, constant_c, transpose_mask)
+-- generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_vals, mask_config, constant_c, constant_c_1, constant_c_2, transpose_mask, use_gompertz)
 Takes in lists of parameters to traverse each combination of them to calculate %errors at maxima of hypothetical data wrt simulated data
 Returns a database pd.DataFrame(columns=['E_p','w','d_tot', 'theta', 'p_gph','err%_at_max','err%_at_min','err%_Ep'])
-mask_config is in the form (Js, a0, aS), constant_c defaults to 0.006
+mask_config is in the form (Js, a0, aS)
 
 
-Defaults: Js=0.00000015 uJ/um2, a0=0.01725, aS=0.00575
+Defaults: Js=0.00000015 uJ/um2, a0=0.01725, aS=0.00575. To use the Gompertz-like hypothetical function, toggle use_gompertz=True
+when using relevant functions. Constant c defaults to 0.006. c_1 and c_2 defaults to 0.0022, 0.42 respectively.
 
 Note: Multithread your tests if you can afford the memory space, they use one core only.
 Note: Do not import beam.py separately, it is already included here.
@@ -61,11 +62,11 @@ J_elp = S(2)*E_p*cos(theta)*exp((-2/(w**2))*((x**2)*cos(theta) + y**2))/(pi*(w**
 J_red_elp = J_elp*(a_0+(a_s)/(S(1) + J_elp/J_s))  # Loss in J after one passage, uses J_elp instead of the function J
 
 # All encompassing hypothesis, explaining translative effects as well:
-c = symbols('c')  # Magic constant, low error rates ensue around c=0.006
+c = symbols('c')  # Magic constant of E_enc_1, low error rates ensue around c=0.006
+c_1, c_2 = symbols('c_1,c_2')  # Magic constants of E_enc_2, low error rates ensue around c_1=0.0022, c_2=0.42.
 y_pos = symbols('y_pos') # Relative position of graphene wrt the beam center, center of an ablated region corresponds to d_tot*3/4
-E_enc = E_tot*(S(1)+(c*(d_tot-w)/w)*(S(1)-p_gph)*sin(S(2)*pi*y_pos/d_tot))
-E_enc_min = E_tot*(S(1)-(c*(d_tot-w)/w)*(S(1)-p_gph))
-E_enc_max = E_tot*(S(1)+(c*(d_tot-w)/w)*(S(1)-p_gph))
+E_enc_1 = E_tot*(S(1)+(c*(d_tot-w)/w)*(S(1)-p_gph)*sin(S(2)*pi*y_pos/d_tot))  # Simpler hypothesis
+E_enc_2 = E_tot*(S(1)+((c_1/p_gph))*exp((-c_2*w/p_gph)*exp(-(d_tot/(4*c_2*w*p_gph))-1))*sin(S(2)*pi*y_pos/d_tot))  # Gompertz-like curved hypothesis
 
 
 def variation_checker(beam, width_config, plot=False):  # width_config is a list with entries (graphene_width, ablation_width)
@@ -126,7 +127,8 @@ def simulated_translation_Evals(beam, width_config, mask_config=(0.00000015,0.01
 
 
 # Remember that E_enc works for d_tot>w, if w<d_tot then there is only negligible variation with translation
-def hypothesis_calculator(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.00000015, hc_E_p=0, hc_w=0, hc_res=30, hc_d_tot=0, hc_p_gph=0, hc_c=0.006):
+def hypothesis_calculator(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.00000015, hc_E_p=0, hc_w=0, hc_res=30, hc_d_tot=0, hc_p_gph=0,\
+                          hc_c=0.006, hc_c_1=0.0022, hc_c_2=0.42, use_gompertz=False):
     # Defaults to properties of graphene for a_0, a_s, J_s. Defaults the magic constant to c=0.006, and res=30 parts per 1 um
     # Mind that E_enc will err considerably if p_gph<25%, also there is nonlinearity around d_tot \approx w
 
@@ -145,15 +147,19 @@ def hypothesis_calculator(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.00000015, hc_E_
     simulated_translation_data = simulated_translation_Evals(beam_init,\
                                                             ( hc_d_tot*hc_p_gph, hc_d_tot*(1-hc_p_gph) ),\
                                                             ( hc_J_s, hc_a_0, hc_a_s ))
-    E_enc_fixed = E_enc.subs({E_tot:hc_E_tot_ministripes, c:hc_c, d_tot:hc_d_tot, w:hc_w, p_gph:hc_p_gph})
+    if use_gompertz == False:
+        E_enc_fixed = E_enc_1.subs({E_tot:hc_E_tot_ministripes, c:hc_c, d_tot:hc_d_tot, w:hc_w, p_gph:hc_p_gph})
+    else:
+        E_enc_fixed = E_enc_2.subs({E_tot:hc_E_tot_ministripes, c_1:hc_c_1, c_2:hc_c_2, d_tot:hc_d_tot, w:hc_w, p_gph:hc_p_gph})
+
     np_E_enc_fixed = lambdify(y_pos, E_enc_fixed, 'numpy')
     hypothetical_translation_data = [np_E_enc_fixed(i) for i in range(int(np.ceil(hc_d_tot)))]
 
     return simulated_translation_data, hypothetical_translation_data, beam_init_Ep_error
 
 
-def hypothesis_calculator_elliptical(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.00000015,\
-                                     hc_E_p=0, hc_w=0, hc_res=30, hc_d_tot=0, hc_p_gph=0, hc_c=0.006, hc_theta=0, transpose_mask=False):
+def hypothesis_calculator_elliptical(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.00000015, hc_E_p=0, hc_w=0, hc_res=30, hc_d_tot=0,\
+                                     hc_p_gph=0, hc_c=0.006, hc_c_1=0.0022, hc_c_2=0.42, hc_theta=0, transpose_mask=False, use_gompertz=False):
     # Defaults to properties of graphene for a_0, a_s, J_s. Defaults the magic constant to c=0.006, and res=30 parts per 1 um
     # Mind that E_enc will err considerably if p_gph<25%, also there is nonlinearity around d_tot \approx w
 
@@ -175,15 +181,20 @@ def hypothesis_calculator_elliptical(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.0000
     simulated_translation_data = simulated_translation_Evals(beam_init,\
                                                             ( hc_d_tot*hc_p_gph, hc_d_tot*(1-hc_p_gph) ),\
                                                             ( hc_J_s, hc_a_0, hc_a_s ))
-    E_enc_fixed = E_enc.subs({E_tot:hc_E_tot_ministripes, c:hc_c, d_tot:hc_d_tot, w:hc_w, p_gph:hc_p_gph})
+    if use_gompertz == False:
+        E_enc_fixed = E_enc_1.subs({E_tot:hc_E_tot_ministripes, c:hc_c, d_tot:hc_d_tot, w:hc_w, p_gph:hc_p_gph})
+    else:
+        E_enc_fixed = E_enc_2.subs({E_tot:hc_E_tot_ministripes, c_1:hc_c_1, c_2:hc_c_2, d_tot:hc_d_tot, w:hc_w, p_gph:hc_p_gph})
+
+    np_E_enc_fixed = lambdify(y_pos, E_enc_fixed, 'numpy')
     np_E_enc_fixed = lambdify(y_pos, E_enc_fixed, 'numpy')
     hypothetical_translation_data = [np_E_enc_fixed(i) for i in range(int(np.ceil(hc_d_tot)))]
 
     return simulated_translation_data, hypothetical_translation_data, beam_init_Ep_error
 
 
-def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals,\
-                                                      mask_config=(0.00000015,0.01725,0.00575), constant_c=0.006):
+def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, mask_config=(0.00000015,0.01725,0.00575),\
+                        constant_c=0.006, constant_c_1=0.0022, constant_c_2=0.42, use_gompertz=False):
     beam_pd = pd.DataFrame(columns=['E_p','w','d_tot','p_gph','err%_at_max','err%_at_min'])
     for test_E_p in E_p_vals:
         for test_w in w_vals:
@@ -196,7 +207,10 @@ def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals,\
                                                                       hc_J_s = mask_config[0],\
                                                                       hc_a_0 = mask_config[1],\
                                                                       hc_a_s = mask_config[2],\
-                                                                      hc_c=constant_c)
+                                                                      hc_c=constant_c,\
+                                                                      hc_c_1=constant_c_1,\
+                                                                      hc_c_2=constant_c_2,\
+                                                                      use_gompertz=use_gompertz)
                     max_dat = 100*(max(sim_dat)-max(hypo_dat))/max(sim_dat)
                     min_dat = 100*(min(sim_dat)-min(hypo_dat))/min(sim_dat)
                     beam_pd = beam_pd.append({'E_p':test_E_p,\
@@ -208,8 +222,8 @@ def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals,\
     return beam_pd
 
 
-def generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_vals,\
-                                                                         mask_config=(0.00000015,0.01725,0.00575), constant_c=0.006, transpose_mask=False):
+def generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_vals, mask_config=(0.00000015,0.01725,0.00575),\
+                               constant_c=0.006, constant_c_1=0.0022, constant_c_2=0.42, transpose_mask=False, use_gompertz=False):
     beam_pd_tilted = pd.DataFrame(columns=['E_p','w','d_tot', 'theta', 'p_gph','err%_at_max','err%_at_min','err%_Ep'])
     for test_E_p in E_p_vals:
         for test_w in w_vals:
@@ -225,7 +239,10 @@ def generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_v
                                                                                      hc_a_0 = mask_config[1],\
                                                                                      hc_a_s = mask_config[2],\
                                                                                      transpose_mask=transpose_mask,\
-                                                                                     hc_c=constant_c)
+                                                                                     hc_c=constant_c,\
+                                                                                     hc_c_1=constant_c_1,\
+                                                                                     hc_c_2=constant_c_2,\
+                                                                                     use_gompertz=use_gompertz)
                         max_dat = 100*(max(sim_dat)-max(hypo_dat))/max(sim_dat)
                         min_dat = 100*(min(sim_dat)-min(hypo_dat))/min(sim_dat)
                         beam_pd_tilted = beam_pd_tilted.append({'E_p':test_E_p,\
