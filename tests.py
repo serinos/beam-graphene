@@ -93,7 +93,7 @@ def variation_checker(beam, width_config, plot=False):  # width_config is a list
     if plot == True:
         for i in range(len(width_config)):
             plt.plot(dE_E[i], label=f"{(width_config[i][0],width_config[i][1])} um")
-        plt.ylabel('Loss (%)')
+        plt.ylabel('Loss (Percent)')
         plt.xlabel('Sliding Offset (um)')
         plt.legend(loc = 'best')
         plt.show()
@@ -101,7 +101,7 @@ def variation_checker(beam, width_config, plot=False):  # width_config is a list
     dE_E_diff = [100*(max(i)-min(i))/((sum(i))/len(i)) for i in dE_E]
     if plot == True:
         plt.plot(dE_E_diff,'o')
-        plt.ylabel(r'% Change in Loss over Mean Loss')
+        plt.ylabel(r'Percent Change in Loss over Mean Loss')
         plt.xlabel('Configuration No')
         plt.show()
 
@@ -195,7 +195,7 @@ def hypothesis_calculator_elliptical(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.0000
 
 def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, mask_config=(0.00000015,0.01725,0.00575),\
                         constant_c=0.006, constant_c_1=0.0022, constant_c_2=0.42, use_gompertz=False):
-    beam_pd = pd.DataFrame(columns=['E_p','w','d_tot','p_gph','err%_at_max','err%_at_min'])
+    beam_pd = pd.DataFrame(columns=['E_p','w','d_tot','p_gph','err_pc_at_max','err_pc_at_min'])
     for test_E_p in E_p_vals:
         for test_w in w_vals:
             for test_d_tot in d_tot_vals:
@@ -217,14 +217,14 @@ def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, mask_config=(0
                                               'w':test_w,\
                                               'd_tot':test_d_tot,\
                                               'p_gph':test_p_gph,\
-                                              'err%_at_max':max_dat,\
-                                              'err%_at_min':min_dat}, ignore_index=True)
+                                              'err_pc_at_max':max_dat,\
+                                              'err_pc_at_min':min_dat}, ignore_index=True)
     return beam_pd
 
 
 def generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_vals, mask_config=(0.00000015,0.01725,0.00575),\
                                constant_c=0.006, constant_c_1=0.0022, constant_c_2=0.42, transpose_mask=False, use_gompertz=False):
-    beam_pd_tilted = pd.DataFrame(columns=['E_p','w','d_tot', 'theta', 'p_gph','err%_at_max','err%_at_min','err%_Ep'])
+    beam_pd_tilted = pd.DataFrame(columns=['E_p','w','d_tot', 'theta', 'p_gph','err_pc_at_max','err_pc_at_min','err_pc_Ep'])
     for test_E_p in E_p_vals:
         for test_w in w_vals:
             for test_d_tot in d_tot_vals:
@@ -250,7 +250,7 @@ def generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_v
                                                                 'd_tot':test_d_tot,\
                                                                 'theta':test_theta,\
                                                                 'p_gph':test_p_gph,\
-                                                                'err%_at_max':max_dat,\
-                                                                'err%_at_min':min_dat,\
-                                                                'err%_Ep':err_Ep}, ignore_index=True)  #Use err_Ep to check if dims are good enough
+                                                                'err_pc_at_max':max_dat,\
+                                                                'err_pc_at_min':min_dat,\
+                                                                'err_pc_Ep':err_Ep}, ignore_index=True)  #Use err_Ep to check if dims are good enough
     return beam_pd_tilted
