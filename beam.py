@@ -62,8 +62,8 @@ As for percent, if overwritten as True, the function returns loss in %.
 
 
 Units: Think of x resolution unit as resolving 1/x um, enter w in um
-       Defaults: Js=0.00000015 uJ/um2, Ep=0.04 uJ, res=1, a0=0.01725, aS=0.00575, eval threshold of beam=10^-10uJ
-               : n_env=1, n_mat=1.45
+       Defaults: Js=0.000000145 uJ/um2, Ep=0.04 uJ, res=1, a0=0.0161, aS=0.0069, eval threshold of beam=10^-10uJ
+               : n_env=1, n_mat=1.45; The parameters of graphene are for a monolayer.
 
 Known issues: --Beams initialized by beam_initfunc() cannot be used with circular masks because of dimension mismatch, fix this.
               This is caused by the option shape='circles' assuming every beam.matrix.shape to be of even numbers, which is never
@@ -172,7 +172,7 @@ def beam_initfunc(res=1, length=0, Ep=0.04, w=0, func="0"):
     return Beam(res, Ep, w, resultant.shape[0], resultant)
 
 
-def mask_initialize(Js=0.00000015, a0=0.01725, aS=0.00575, **kwargs):
+def mask_initialize(Js=0.000000145, a0=0.0161, aS=0.0069, **kwargs):
     try:
         shape = kwargs.pop("shape")
         beam = kwargs.pop("beam")
