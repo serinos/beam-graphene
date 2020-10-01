@@ -3,10 +3,11 @@ Title: Testing Toolkit for Simulation of Laser Beams Masked by Semi-ablated Satu
 Author: Onur Serin
 
 Functions:
--- variation_checker(beam, width_config, plot)
+-- variation_checker(beam, width_config, plot, mask_config)
 Calculates % variation in energy as given graphene masks are translated
 in front of a beam for each 1um step one by one, and calculates the % change in loss over mean loss, width_config is a list
 with entries (graphene_width, ablation_width). If plot=True, then plots two figures, one for each calculation.
+mask_config is in the form (Js, a0, aS), defaults if no mask_config given
 
 -- simulated_translation_Evals(beam, width_config, mask_config)
 Returns a list of E values after the beam is translated 1um at a time in front of a graphene layer, width_config is a tuple
@@ -40,8 +41,8 @@ Returns a database pd.DataFrame(columns=['E_p','w','d_tot', 'theta', 'p_gph','er
 mask_config is in the form (Js, a0, aS)
 
 
-Defaults: Js=0.00000015 uJ/um2, a0=0.01725, aS=0.00575. To use the Gompertz-like hypothetical function, toggle use_gompertz=True
-when using relevant functions. Constant c defaults to 0.006. c_1 and c_2 defaults to 0.0022, 0.42 respectively.
+Defaults: Js=0.000000145 uJ/um2, a0=0.0161, aS=0.0069. To use the Gompertz-like hypothetical function, toggle use_gompertz=True
+when using relevant functions. Constant c defaults to 0.005. c_1 and c_2 defaults to 0.002, 0.4 respectively.
 
 Note: Multithread your tests if you can afford the memory space, they use one core only.
 Note: Do not import beam.py separately, it is already included here.
@@ -62,19 +63,20 @@ J_elp = S(2)*E_p*cos(theta)*exp((-2/(w**2))*((x**2)*cos(theta) + y**2))/(pi*(w**
 J_red_elp = J_elp*(a_0+(a_s)/(S(1) + J_elp/J_s))  # Loss in J after one passage, uses J_elp instead of the function J
 
 # All encompassing hypothesis, explaining translative effects as well:
-c = symbols('c')  # Magic constant of E_enc_1, low error rates ensue around c=0.006
+c = symbols('c')  # Magic constant of E_enc_1, low error rates ensue around c=0.005 for monolayer graphene
 c_1, c_2 = symbols('c_1,c_2')  # Magic constants of E_enc_2, low error rates ensue around c_1=0.0022, c_2=0.42.
 y_pos = symbols('y_pos') # Relative position of graphene wrt the beam center, center of an ablated region corresponds to d_tot*3/4
 E_enc_1 = E_tot*(S(1)+(c*(d_tot-w)/w)*(S(1)-p_gph)*sin(S(2)*pi*y_pos/d_tot))  # Simpler hypothesis
 E_enc_2 = E_tot*(S(1)+((c_1/p_gph))*exp((-c_2*w/p_gph)*exp(-(d_tot/(4*c_2*w*p_gph))-1))*sin(S(2)*pi*y_pos/d_tot))  # Gompertz-like curved hypothesis
 
 
-def variation_checker(beam, width_config, plot=False):  # width_config is a list with entries (graphene_width, ablation_width)
+def variation_checker(beam, width_config, plot=False, mask_config=(0.000000145,0.0161,0.0069)):  # width_config is a list with entries (graphene_width, ablation_width)
     results = []  # results list will contain energy integral values(wrt offset 1um per step) of each config
     Einput_actual = integrate_for_energy(beam)
 
     for i in range(len(width_config)):
-        mm = mask_initialize(beam=beam, shape='lines', width=width_config[i][0], thickness=width_config[i][1], crop=False)
+        mm = mask_initialize(beam=beam, shape='lines', width=width_config[i][0], thickness=width_config[i][1],\
+                             Js=mask_config[0], a0=mask_config[1], aS=mask_config[2], crop=False)
         stepsize = int(np.ceil(width_config[i][0] + width_config[i][1]))
         itrtr = mask_slide_iterator(beam=beam,mask=mm,stepsY=stepsize)  # Slider slides graphene layer about 1um at a time
         tmp = []
@@ -108,7 +110,7 @@ def variation_checker(beam, width_config, plot=False):  # width_config is a list
     return dE_E, dE_E_diff
 
 
-def simulated_translation_Evals(beam, width_config, mask_config=(0.00000015,0.01725,0.00575)):  # width_config is the tuple (graphene_width, ablation_width)
+def simulated_translation_Evals(beam, width_config, mask_config=(0.000000145,0.0161,0.0069)):  # width_config is the tuple (graphene_width, ablation_width)
     # Overwrite mask_config, which is (Js,a0,aS), for non-graphene layers
     results = []  # results list will contain energy integral values(wrt offset 1um per step) of each config
     Einput_actual = integrate_for_energy(beam)
@@ -126,11 +128,10 @@ def simulated_translation_Evals(beam, width_config, mask_config=(0.00000015,0.01
     return results
 
 
-# Remember that E_enc works for d_tot>w, if w<d_tot then there is only negligible variation with translation
-def hypothesis_calculator(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.00000015, hc_E_p=0, hc_w=0, hc_res=30, hc_d_tot=0, hc_p_gph=0,\
-                          hc_c=0.006, hc_c_1=0.0022, hc_c_2=0.42, use_gompertz=False):
-    # Defaults to properties of graphene for a_0, a_s, J_s. Defaults the magic constant to c=0.006, and res=30 parts per 1 um
-    # Mind that E_enc will err considerably if p_gph<25%, also there is nonlinearity around d_tot \approx w
+# Remember that E_enc_1 works for d_tot>w, if w<d_tot then there is only negligible variation with translation
+def hypothesis_calculator(hc_a_0=0.0161,hc_a_s=0.0069,hc_J_s=0.000000145, hc_E_p=0, hc_w=0, hc_res=30, hc_d_tot=0, hc_p_gph=0,\
+                          hc_c=0.005, hc_c_1=0.002, hc_c_2=0.4, use_gompertz=False):
+    # res=30 parts per 1 um
 
     # Initialize a beam with beam_initialize_fast, threshold=10**-16
     beam_init = beam_initialize_fast(Ep=hc_E_p, w=hc_w, res=hc_res, threshold=10**-16)
@@ -158,10 +159,9 @@ def hypothesis_calculator(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.00000015, hc_E_
     return simulated_translation_data, hypothetical_translation_data, beam_init_Ep_error
 
 
-def hypothesis_calculator_elliptical(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.00000015, hc_E_p=0, hc_w=0, hc_res=30, hc_d_tot=0,\
-                                     hc_p_gph=0, hc_c=0.006, hc_c_1=0.0022, hc_c_2=0.42, hc_theta=0, transpose_mask=False, use_gompertz=False):
-    # Defaults to properties of graphene for a_0, a_s, J_s. Defaults the magic constant to c=0.006, and res=30 parts per 1 um
-    # Mind that E_enc will err considerably if p_gph<25%, also there is nonlinearity around d_tot \approx w
+def hypothesis_calculator_elliptical(hc_a_0=0.0161,hc_a_s=0.0069,hc_J_s=0.000000145, hc_E_p=0, hc_w=0, hc_res=30, hc_d_tot=0,\
+                                     hc_p_gph=0, hc_c=0.005, hc_c_1=0.002, hc_c_2=0.4, hc_theta=0, transpose_mask=False, use_gompertz=False):
+    # res=30 parts per 1 um
 
     # Initialize a beam with beam_inittilt(), length=w*4 for good measure, check if beam_init_Ep_error is good enough
     if transpose_mask == True:
@@ -193,8 +193,8 @@ def hypothesis_calculator_elliptical(hc_a_0=0.01725,hc_a_s=0.00575,hc_J_s=0.0000
     return simulated_translation_data, hypothetical_translation_data, beam_init_Ep_error
 
 
-def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, mask_config=(0.00000015,0.01725,0.00575),\
-                        constant_c=0.006, constant_c_1=0.0022, constant_c_2=0.42, use_gompertz=False):
+def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, mask_config=(0.000000145,0.0161,0.0069),\
+                        constant_c=0.005, constant_c_1=0.002, constant_c_2=0.4, use_gompertz=False):
     beam_pd = pd.DataFrame(columns=['E_p','w','d_tot','p_gph','err_pc_at_max','err_pc_at_min'])
     for test_E_p in E_p_vals:
         for test_w in w_vals:
@@ -222,8 +222,8 @@ def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, mask_config=(0
     return beam_pd
 
 
-def generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_vals, mask_config=(0.00000015,0.01725,0.00575),\
-                               constant_c=0.006, constant_c_1=0.0022, constant_c_2=0.42, transpose_mask=False, use_gompertz=False):
+def generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_vals, mask_config=(0.000000145,0.0161,0.0069),\
+                               constant_c=0.005, constant_c_1=0.002, constant_c_2=0.4, transpose_mask=False, use_gompertz=False):
     beam_pd_tilted = pd.DataFrame(columns=['E_p','w','d_tot', 'theta', 'p_gph','err_pc_at_max','err_pc_at_min','err_pc_Ep'])
     for test_E_p in E_p_vals:
         for test_w in w_vals:
