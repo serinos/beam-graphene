@@ -29,8 +29,9 @@ The entry at the center of the matrix stands for approximately (0,0) in x-y, +-1
 stands for +-(1/res) shift in x-y.
 Return type is Beam
 
--- mask_initialize(beam, <shape params>, thickness, Js, a0, aS, crop)  outputs mask with
+-- mask_initialize(beam, <shape params>, width, thickness, Js, a0, aS, crop)  outputs mask with
 desired shape for a given beam, for now only straight lines and circles are implemented
+width is graphene width, thickness is ablation thickness (gap width)
 crop (True/False) yields cropped/uncropped masks
 Return type is Mask
 
