@@ -42,7 +42,7 @@ mask_config is in the form (Js, a0, aS)
 
 
 Defaults: Js=0.000000145 uJ/um2, a0=0.0161, aS=0.0069. To use the Gompertz-like hypothetical function, toggle use_gompertz=True
-when using relevant functions. Constant c defaults to 0.005. c_1 and c_2 defaults to 0.002, 0.4 respectively.
+when using relevant functions. Constant c defaults to 0.002. c_1 and c_2 defaults to 0.008, 0.4 respectively.
 
 Note: Multithread your tests if you can afford the memory space, they use one core only.
 Note: Do not import beam.py separately, it is already included here.
@@ -62,12 +62,12 @@ J_red = J*(a_0+(a_s)/(S(1) + J/J_s))  # Loss in J after one passage
 J_elp = S(2)*E_p*cos(theta)*exp((-2/(w**2))*((x**2)*cos(theta) + y**2))/(pi*(w**2))  # Energy density at (x,y) for Gaussian beam tilted along x axis by theta
 J_red_elp = J_elp*(a_0+(a_s)/(S(1) + J_elp/J_s))  # Loss in J after one passage, uses J_elp instead of the function J
 
-# All encompassing hypothesis, explaining translative effects as well:
-c = symbols('c')  # Magic constant of E_enc_1, low error rates ensue around c=0.005 for monolayer graphene
-c_1, c_2 = symbols('c_1,c_2')  # Magic constants of E_enc_2, low error rates ensue around c_1=0.0022, c_2=0.42.
+# All encompassing hypotheses, explaining translative effects as well:
+c = symbols('c')
+c_1, c_2 = symbols('c_1,c_2')
 y_pos = symbols('y_pos') # Relative position of graphene wrt the beam center, center of an ablated region corresponds to d_tot*3/4
-E_enc_1 = E_tot*(S(1)+(c*(d_tot-w)/w)*(S(1)-p_gph)*sin(S(2)*pi*y_pos/d_tot))  # Simpler hypothesis
-E_enc_2 = E_tot*(S(1)+((c_1/p_gph))*exp((-c_2*w/p_gph)*exp(-(d_tot/(4*c_2*w*p_gph))-1))*sin(S(2)*pi*y_pos/d_tot))  # Gompertz-like curved hypothesis
+E_enc_1 = E_tot*(S(1)+(c*(d_tot-w)/w)*sin(S(2)*pi*y_pos/d_tot))  # Simpler hypothesis
+E_enc_2 = E_tot*(S(1)+(c_1*p_gph)*exp((-c_2*w/p_gph)*exp(-(d_tot/(4*c_2*w*p_gph))-1))*sin(S(2)*pi*y_pos/d_tot))  # Gompertz-like curved hypothesis
 
 
 def variation_checker(beam, width_config, plot=False, mask_config=(0.000000145,0.0161,0.0069)):  # width_config is a list with entries (graphene_width, ablation_width)
@@ -130,7 +130,7 @@ def simulated_translation_Evals(beam, width_config, mask_config=(0.000000145,0.0
 
 # Remember that E_enc_1 works for d_tot>w, if w<d_tot then there is only negligible variation with translation
 def hypothesis_calculator(hc_a_0=0.0161,hc_a_s=0.0069,hc_J_s=0.000000145, hc_E_p=0, hc_w=0, hc_res=30, hc_d_tot=0, hc_p_gph=0,\
-                          hc_c=0.005, hc_c_1=0.002, hc_c_2=0.4, use_gompertz=False):
+                          hc_c=0.002, hc_c_1=0.008, hc_c_2=0.4, use_gompertz=False):
     # res=30 parts per 1 um
 
     # Initialize a beam with beam_initialize_fast, threshold=10**-16
@@ -160,7 +160,7 @@ def hypothesis_calculator(hc_a_0=0.0161,hc_a_s=0.0069,hc_J_s=0.000000145, hc_E_p
 
 
 def hypothesis_calculator_elliptical(hc_a_0=0.0161,hc_a_s=0.0069,hc_J_s=0.000000145, hc_E_p=0, hc_w=0, hc_res=30, hc_d_tot=0,\
-                                     hc_p_gph=0, hc_c=0.005, hc_c_1=0.002, hc_c_2=0.4, hc_theta=0, transpose_mask=False, use_gompertz=False):
+                                     hc_p_gph=0, hc_c=0.002, hc_c_1=0.008, hc_c_2=0.4, hc_theta=0, transpose_mask=False, use_gompertz=False):
     # res=30 parts per 1 um
 
     # Initialize a beam with beam_inittilt(), length=w*4 for good measure, check if beam_init_Ep_error is good enough
@@ -194,7 +194,7 @@ def hypothesis_calculator_elliptical(hc_a_0=0.0161,hc_a_s=0.0069,hc_J_s=0.000000
 
 
 def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, mask_config=(0.000000145,0.0161,0.0069),\
-                        constant_c=0.005, constant_c_1=0.002, constant_c_2=0.4, use_gompertz=False):
+                        constant_c=0.002, constant_c_1=0.008, constant_c_2=0.4, use_gompertz=False):
     beam_pd = pd.DataFrame(columns=['E_p','w','d_tot','p_gph','err_pc_at_max','err_pc_at_min'])
     for test_E_p in E_p_vals:
         for test_w in w_vals:
@@ -223,7 +223,7 @@ def generic_tester_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, mask_config=(0
 
 
 def generic_tester_tilted_Eenc(E_p_vals, w_vals, d_tot_vals, p_gph_vals, theta_vals, mask_config=(0.000000145,0.0161,0.0069),\
-                               constant_c=0.005, constant_c_1=0.002, constant_c_2=0.4, transpose_mask=False, use_gompertz=False):
+                               constant_c=0.002, constant_c_1=0.008, constant_c_2=0.4, transpose_mask=False, use_gompertz=False):
     beam_pd_tilted = pd.DataFrame(columns=['E_p','w','d_tot', 'theta', 'p_gph','err_pc_at_max','err_pc_at_min','err_pc_Ep'])
     for test_E_p in E_p_vals:
         for test_w in w_vals:
