@@ -29,10 +29,11 @@ The entry at the center of the matrix stands for approximately (0,0) in x-y, +-1
 stands for +-(1/res) shift in x-y.
 Return type is Beam
 
--- mask_initialize(beam, <shape params>, width, thickness, Js, a0, aS, crop)  outputs mask with
+-- mask_initialize(beam, <shape params>, width, thickness, Js, a0, aS, crop, min_max)  outputs mask with
 desired shape for a given beam, for now only straight lines and circles are implemented
 width is graphene width, thickness is ablation thickness (gap width)
-crop (True/False) yields cropped/uncropped masks
+crop (True/False) yields cropped/uncropped masks; if crop=True, then min_max=False yields a mask
+with an ablated region centered, for min_max=True a non-ablated region is centered
 Return type is Mask
 
 -- mask_apply(beam, mask)  Applies the following eqn:
@@ -173,7 +174,7 @@ def beam_initfunc(res=1, length=0, Ep=0.04, w=0, func="0"):
     return Beam(res, Ep, w, resultant.shape[0], resultant)
 
 
-def mask_initialize(Js=0.000000145, a0=0.0161, aS=0.0069, **kwargs):
+def mask_initialize(Js=0.000000145, a0=0.0161, aS=0.0069, min_max=False, **kwargs):
     try:
         shape = kwargs.pop("shape")
         beam = kwargs.pop("beam")
@@ -192,7 +193,7 @@ def mask_initialize(Js=0.000000145, a0=0.0161, aS=0.0069, **kwargs):
         digital_width = int(np.ceil(width * beam.res))
         square_len = digital_thickness + digital_width
         pad = np.vstack((np.zeros((digital_thickness, square_len)), np.ones((digital_width, square_len))))
-        mask = _mask_drawlines(pad=pad, dim=beam.dim, crop=crop_flag)
+        mask = _mask_drawlines(pad=pad, dim=beam.dim, crop=crop_flag, min_max=min_max)
 
     elif shape=="circles":
         width = kwargs.pop("width")
@@ -313,11 +314,12 @@ def _mask_apply(q, config, beam, mask):
     q.put(beam_tuple)
 
 
-def _mask_drawlines(pad: np.ndarray, dim: int, crop=True):
+def _mask_drawlines(pad: np.ndarray, dim: int, min_max: bool, crop=True):
     # Draws a mask by using the pad repetitively to achieve a square matrix,
-    # edges have at least 1 and at most 2 extra pads to ensure proper working of mask_slide()
+    # edges have at least 1 and at most 2 extra pads to ensure proper working of mask_slide().
     # crop=1 returns cropped matrix to match dim, cropped section is centralized with an
-    # ablated region at the center, which is good for approximating the min loss case
+    # ablated(/non-ablated) region at the center, which is good for approximating the min(/max)
+    # loss case for Gaussian beams, use min_max=False for min case, min_max=True for max case
     if pad.shape[0] > dim:
         raise DimensionMismatch
     legroom = pad.shape[0]//2
@@ -325,18 +327,19 @@ def _mask_drawlines(pad: np.ndarray, dim: int, crop=True):
     pad = np.hstack(tuple(pad for i in range((dim//pad.shape[1])+2)))
     midpoint = pad.shape[0]//2
     if crop is True:
+        min_max = 1*min_max  # Casting to int
         best_midpoint_offset = 0
-        score = 0  # Will traverse upward and downward till there is a 1, then multiply the two
+        score = 0  # Will traverse upward and downward till there is a 1(/0), then multiply the two
                    # movement to get a score, max is best for centralization (think of 2*8 vs 5*5)
         for i in range(-legroom,legroom+1):
             cursor_fixed = midpoint + i
-            if pad[cursor_fixed,0]==1:
+            if pad[cursor_fixed,0]==(min_max+1)%2:
                 continue
             cursor = cursor_fixed
             upper = 1
             while True:
                 cursor += 1
-                if pad[cursor,0]==0:
+                if pad[cursor,0]==min_max:
                     upper += 1
                 else:
                     break
@@ -345,7 +348,7 @@ def _mask_drawlines(pad: np.ndarray, dim: int, crop=True):
             lower = 1
             while True:
                 cursor -= 1
-                if pad[cursor,0]==0:
+                if pad[cursor,0]==min_max:
                     lower += 1
                 else:
                     break
